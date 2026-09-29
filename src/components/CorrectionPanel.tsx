@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useAppState } from '../store';
+import { useCapability } from '../capabilities/store';
+import { detectFragmentationAndFusion, analyzeAttackContinuity } from '../capabilities/improvements';
 
 export function CorrectionPanel() {
   const { state, dispatch } = useAppState();
@@ -178,6 +180,11 @@ export function CorrectionPanel() {
         )}
       </div>
 
+      {/* Fragmentation detector (Mejora 21) */}
+      {state.events.length > 0 && (
+        <FragmentationSection events={state.events} />
+      )}
+
       {/* Decision engine info */}
       <div className="mt-4 glass-panel rounded-lg p-3">
         <p className="text-[10px] text-prisma-muted">
@@ -186,6 +193,58 @@ export function CorrectionPanel() {
           Conserva alternativas y registra decisiones reversibles. No descarta notas por resultar armónicamente extrañas.
         </p>
       </div>
+    </div>
+  );
+}
+
+function FragmentationSection({ events }: { events: any[] }) {
+  const { enabled } = useCapability('fragmentation_detector' as any);
+  const [showDetails, setShowDetails] = useState(false);
+  
+  if (!enabled) return null;
+  
+  const { fragmented, fused } = detectFragmentationAndFusion(events);
+
+  return (
+    <div className="mt-4 glass-panel rounded-lg p-3">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-xs font-semibold text-prisma-muted uppercase tracking-wider">
+          <i className="fas fa-object-ungroup mr-1 text-prisma-warm"></i>Detector de Fragmentación y Fusión
+        </h3>
+        <button onClick={() => setShowDetails(!showDetails)} className="text-[9px] text-prisma-accent hover:text-prisma-accent2">
+          {showDetails ? 'Ocultar' : 'Detalles'}
+        </button>
+      </div>
+      <div className="grid grid-cols-2 gap-3 text-center">
+        <div className="bg-prisma-panel rounded p-2">
+          <p className="text-sm font-bold text-prisma-warm">{fragmented.length}</p>
+          <p className="text-[9px] text-prisma-muted">Posibles fragmentaciones</p>
+        </div>
+        <div className="bg-prisma-panel rounded p-2">
+          <p className="text-sm font-bold text-prisma-accent2">{fused.length}</p>
+          <p className="text-[9px] text-prisma-muted">Posibles fusiones</p>
+        </div>
+      </div>
+      {showDetails && (fragmented.length > 0 || fused.length > 0) && (
+        <div className="mt-2 space-y-1">
+          {fragmented.slice(0, 3).map((f, i) => (
+            <div key={i} className="flex items-center gap-2 text-[9px]">
+              <i className="fas fa-cut text-prisma-warm"></i>
+              <span className="text-prisma-muted">Notas {f.ids.join(', ')}: sugerir fusión ({f.suggestedMerge.duration?.toFixed(3)}s)</span>
+            </div>
+          ))}
+          {fused.slice(0, 3).map((f, i) => (
+            <div key={i} className="flex items-center gap-2 text-[9px]">
+              <i className="fas fa-compress-arrows-alt text-prisma-accent2"></i>
+              <span className="text-prisma-muted">Nota {f.id}: posible división en 2 partes</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="text-[8px] text-prisma-muted mt-2">
+        <i className="fas fa-info-circle mr-1"></i>
+        Las correcciones se apoyan en ataques y continuidad acústica. Revisa antes de aplicar.
+      </p>
     </div>
   );
 }

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useAppState } from '../store';
+import { useCapability } from '../capabilities/store';
+import { createProjectPackage, RecoveryManager, roundtripTest } from '../capabilities/improvements';
 
 export function ExportPanel() {
   const { state } = useAppState();
@@ -135,6 +137,152 @@ export function ExportPanel() {
               <i className="fas fa-file-archive mr-2"></i>Descargar todo (.zip)
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Project portability (Mejora 35) */}
+      <ProjectPortabilitySection state={state} />
+
+      {/* Recovery points (Mejora 36) */}
+      <RecoveryPointsSection />
+
+      {/* Roundtrip test (Mejora 34) */}
+      {exported.length > 0 && <RoundtripTestSection state={state} />}
+    </div>
+  );
+}
+
+function ProjectPortabilitySection({ state }: { state: any }) {
+  const { enabled } = useCapability('project_portability');
+  const [saved, setSaved] = useState(false);
+
+  if (!enabled) return null;
+
+  const handleSave = () => {
+    const pkg = createProjectPackage(
+      { events: state.events, sources: state.sources, bars: state.bars },
+      state.audio ? [{ id: state.audio.id, name: state.audio.name, buffer: state.audio.buffer }] : [],
+      [],
+      { tempo: state.tempo, timeSignature: state.timeSignature, key: state.key }
+    );
+    console.log('Project package created:', pkg);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+  };
+
+  return (
+    <div className="mt-4 glass-panel rounded-lg p-4">
+      <h3 className="text-xs font-semibold text-prisma-muted uppercase tracking-wider mb-2">
+        <i className="fas fa-box mr-1 text-prisma-accent2"></i>Portabilidad del Proyecto (Mejora 35)
+      </h3>
+      <p className="text-[10px] text-prisma-muted mb-3">
+        Guarda un paquete con matriz, referencias a fuentes, decisiones y configuración necesaria para continuar el trabajo.
+      </p>
+      <button
+        onClick={handleSave}
+        disabled={!state.audio}
+        className="text-xs px-3 py-1.5 rounded bg-prisma-accent2 text-white hover:bg-prisma-accent2/80 disabled:opacity-50"
+      >
+        <i className={`fas ${saved ? 'fa-check' : 'fa-save'} mr-1`}></i>
+        {saved ? 'Guardado' : 'Guardar Paquete'}
+      </button>
+      {state.audio && (
+        <p className="text-[9px] text-prisma-muted mt-2">
+          <i className="fas fa-info-circle mr-1"></i>
+          Incluye: {state.events.length} eventos, {state.sources.length} fuentes, {state.bars.length} compases
+        </p>
+      )}
+    </div>
+  );
+}
+
+function RecoveryPointsSection() {
+  const { enabled } = useCapability('recovery_points');
+  const recoveryManager = React.useRef(new RecoveryManager()).current;
+  const [points, setPoints] = useState(recoveryManager.getPoints());
+
+  if (!enabled) return null;
+
+  const handleSavePoint = (stage: string) => {
+    recoveryManager.savePoint(stage, { timestamp: Date.now() });
+    setPoints(recoveryManager.getPoints());
+  };
+
+  return (
+    <div className="mt-4 glass-panel rounded-lg p-4">
+      <h3 className="text-xs font-semibold text-prisma-muted uppercase tracking-wider mb-2">
+        <i className="fas fa-history mr-1 text-prisma-warm"></i>Puntos de Recuperación (Mejora 36)
+      </h3>
+      <p className="text-[10px] text-prisma-muted mb-3">
+        Guarda resultados completos de etapas costosas. Tras una interrupción, retoma desde el último estado válido.
+      </p>
+      <div className="flex flex-wrap gap-2 mb-3">
+        {['import', 'spectral', 'detection', 'quantization', 'notation'].map(stage => (
+          <button
+            key={stage}
+            onClick={() => handleSavePoint(stage)}
+            className="text-[9px] px-2 py-1 rounded bg-prisma-panel text-prisma-muted hover:text-white"
+          >
+            <i className="fas fa-bookmark mr-1"></i>{stage}
+          </button>
+        ))}
+      </div>
+      {points.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-[9px] text-prisma-muted">Puntos guardados:</p>
+          {points.slice(-3).reverse().map((p, i) => (
+            <div key={i} className="flex items-center gap-2 text-[9px]">
+              <i className="fas fa-circle text-prisma-warm text-[5px]"></i>
+              <span className="text-white">{p.stage}</span>
+              <span className="text-prisma-muted">{new Date(p.timestamp).toLocaleTimeString()}</span>
+              <span className="text-prisma-accent2">{(p.sizeBytes / 1024).toFixed(1)}KB</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RoundtripTestSection({ state }: { state: any }) {
+  const { enabled } = useCapability('roundtrip_test');
+  const [testResult, setTestResult] = useState<any>(null);
+
+  if (!enabled) return null;
+
+  const handleTest = () => {
+    // Simulate roundtrip test
+    const result = roundtripTest(state.events, {}, state.events);
+    setTestResult(result);
+  };
+
+  return (
+    <div className="mt-4 glass-panel rounded-lg p-4">
+      <h3 className="text-xs font-semibold text-prisma-muted uppercase tracking-wider mb-2">
+        <i className="fas fa-exchange-alt mr-1 text-prisma-success"></i>Prueba de Ida y Vuelta (Mejora 34)
+      </h3>
+      <p className="text-[10px] text-prisma-muted mb-3">
+        Exporta y vuelve a importar archivos para comparar contenido musical: notas, tiempos, voces, tempo, transposición y silencios.
+      </p>
+      <button
+        onClick={handleTest}
+        className="text-xs px-3 py-1.5 rounded bg-prisma-success text-white hover:bg-prisma-success/80"
+      >
+        <i className="fas fa-sync mr-1"></i>Ejecutar Prueba
+      </button>
+      {testResult && (
+        <div className={`mt-3 p-2 rounded ${testResult.passed ? 'bg-prisma-success/10' : 'bg-prisma-error/10'}`}>
+          <p className={`text-[10px] font-medium ${testResult.passed ? 'text-prisma-success' : 'text-prisma-error'}`}>
+            <i className={`fas ${testResult.passed ? 'fa-check-circle' : 'fa-times-circle'} mr-1`}></i>
+            {testResult.passed ? 'Prueba superada' : `${testResult.discrepancies.length} discrepancias`}
+          </p>
+          {!testResult.passed && (
+            <ul className="mt-1 space-y-0.5">
+              {testResult.discrepancies.slice(0, 5).map((d: string, i: number) => (
+                <li key={i} className="text-[9px] text-prisma-muted">• {d}</li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
     </div>

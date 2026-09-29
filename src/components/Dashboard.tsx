@@ -1,8 +1,12 @@
 import React from 'react';
 import { useAppState } from '../store';
+import { useCapabilities } from '../capabilities/store';
 
 export function Dashboard() {
   const { state, dispatch } = useAppState();
+  const { state: capsState } = useCapabilities();
+  const enabledCaps = Object.values(capsState.capabilities).filter(c => c.enabled);
+  const experimentalCaps = enabledCaps.filter(c => c.experimental);
 
   const stats = [
     { label: 'Eventos detectados', value: state.events.length, icon: 'fa-music', color: 'text-prisma-accent' },
@@ -116,6 +120,37 @@ export function Dashboard() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Active capabilities summary */}
+      <div className="mt-4 glass-panel rounded-lg p-4">
+        <h3 className="text-xs font-semibold text-prisma-muted uppercase tracking-wider mb-3">
+          <i className="fas fa-sliders-h mr-2"></i>Capacidades Activas ({enabledCaps.length}/36)
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+          {['protection', 'speed', 'fidelity', 'learning', 'export'].map(group => {
+            const groupCaps = enabledCaps.filter(c => c.group === group);
+            const groupLabels: Record<string, string> = {
+              protection: 'Protección',
+              speed: 'Velocidad',
+              fidelity: 'Fidelidad',
+              learning: 'Aprendizaje',
+              export: 'Exportación',
+            };
+            return (
+              <div key={group} className="bg-prisma-panel rounded p-2 text-center">
+                <p className="text-sm font-bold text-white">{groupCaps.length}</p>
+                <p className="text-[8px] text-prisma-muted">{groupLabels[group]}</p>
+              </div>
+            );
+          })}
+        </div>
+        {experimentalCaps.length > 0 && (
+          <p className="text-[9px] text-prisma-warm mt-2">
+            <i className="fas fa-flask mr-1"></i>
+            {experimentalCaps.length} capacidades experimentales activas
+          </p>
+        )}
       </div>
     </div>
   );

@@ -1,7 +1,9 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { AppProvider, useAppState } from './store';
 import { AgentsProvider } from './agents/store';
+import { CapabilitiesProvider } from './capabilities/store';
 import { ContinuousImprovementPanel } from './components/ContinuousImprovementPanel';
+import { CapabilitiesPanel } from './components/CapabilitiesPanel';
 import { ViewType, MusicalEvent, Source } from './types';
 import { Dashboard } from './components/Dashboard';
 import { AudioImport } from './components/AudioImport';
@@ -36,6 +38,7 @@ function AppContent() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showAI, setShowAI] = useState(false);
   const [showImprovement, setShowImprovement] = useState(false);
+  const [showCapabilities, setShowCapabilities] = useState(false);
 
   const navigateTo = useCallback((view: ViewType) => {
     dispatch({ type: 'SET_VIEW', payload: view });
@@ -111,6 +114,14 @@ function AppContent() {
           )}
           <div className="flex items-center gap-2">
             <button
+              onClick={() => setShowCapabilities(!showCapabilities)}
+              className={`text-xs px-2 py-1 rounded transition-colors ${
+                showCapabilities ? 'bg-prisma-accent/20 text-prisma-accent' : 'text-prisma-muted hover:text-prisma-text hover:bg-prisma-panel'
+              }`}
+            >
+              <i className="fas fa-sliders-h mr-1"></i>Capacidades
+            </button>
+            <button
               onClick={() => setShowImprovement(!showImprovement)}
               className={`text-xs px-2 py-1 rounded transition-colors ${
                 showImprovement ? 'bg-prisma-accent2/20 text-prisma-accent2' : 'text-prisma-muted hover:text-prisma-text hover:bg-prisma-panel'
@@ -130,7 +141,9 @@ function AppContent() {
         {/* Workspace */}
         <div className="flex-1 flex overflow-hidden">
           <div className="flex-1 overflow-auto">
-            {showImprovement ? (
+            {showCapabilities ? (
+              <CapabilitiesPanel onClose={() => setShowCapabilities(false)} />
+            ) : showImprovement ? (
               <ContinuousImprovementPanel onClose={() => setShowImprovement(false)} />
             ) : (
               renderView(state, dispatch)
@@ -185,10 +198,12 @@ function EditorView() {
 
 export default function App() {
   return (
-    <AgentsProvider>
-      <AppProvider>
-        <AppContent />
-      </AppProvider>
-    </AgentsProvider>
+    <CapabilitiesProvider>
+      <AgentsProvider>
+        <AppProvider>
+          <AppContent />
+        </AppProvider>
+      </AgentsProvider>
+    </CapabilitiesProvider>
   );
 }
