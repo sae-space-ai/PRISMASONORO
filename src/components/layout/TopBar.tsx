@@ -1,7 +1,14 @@
 import React, { useState } from 'react';
 import { useAppState } from '../../store';
 
-export function TopBar() {
+interface TopBarProps {
+  onToggleImprovement?: () => void;
+  onToggleCapabilities?: () => void;
+  showImprovement?: boolean;
+  showCapabilities?: boolean;
+}
+
+export function TopBar({ onToggleImprovement, onToggleCapabilities, showImprovement, showCapabilities }: TopBarProps = {}) {
   const { state, dispatch } = useAppState();
   const [showExport, setShowExport] = useState(false);
 
@@ -88,8 +95,36 @@ export function TopBar() {
         <span>Exportar</span>
       </button>
 
+      {/* Mejora Continua */}
+      {onToggleImprovement && (
+        <button
+          onClick={onToggleImprovement}
+          className={`px-3 py-1.5 rounded-lg text-xs transition-colors ${
+            showImprovement ? 'bg-prisma-accent2/20 text-prisma-accent2' : 'text-prisma-text-secondary hover:text-prisma-text hover:bg-prisma-surface-2'
+          }`}
+          title="Mejora continua y agentes"
+        >
+          <i className="fas fa-chart-line mr-1.5"></i>
+          <span>Mejora</span>
+        </button>
+      )}
+
+      {/* Capacidades */}
+      {onToggleCapabilities && (
+        <button
+          onClick={onToggleCapabilities}
+          className={`px-3 py-1.5 rounded-lg text-xs transition-colors ${
+            showCapabilities ? 'bg-prisma-accent/20 text-prisma-accent' : 'text-prisma-text-secondary hover:text-prisma-text hover:bg-prisma-surface-2'
+          }`}
+          title="36 mejoras controladas"
+        >
+          <i className="fas fa-sliders-h mr-1.5"></i>
+          <span>Capacidades</span>
+        </button>
+      )}
+
       {/* Settings */}
-      <button className="w-9 h-9 rounded-lg hover:bg-prisma-surface-2 flex items-center justify-center text-prisma-text-secondary hover:text-prisma-text transition-colors">
+      <button className="w-9 h-9 rounded-lg hover:bg-prisma-surface-2 flex items-center justify-center text-prisma-text-secondary hover:text-prisma-text transition-colors" title="Configuración">
         <i className="fas fa-cog"></i>
       </button>
     </div>
