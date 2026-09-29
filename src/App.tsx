@@ -1,5 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { AppProvider, useAppState } from './store';
+import { AgentsProvider } from './agents/store';
+import { ContinuousImprovementPanel } from './components/ContinuousImprovementPanel';
 import { ViewType, MusicalEvent, Source } from './types';
 import { Dashboard } from './components/Dashboard';
 import { AudioImport } from './components/AudioImport';
@@ -33,6 +35,7 @@ function AppContent() {
   const { state, dispatch } = useAppState();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showAI, setShowAI] = useState(false);
+  const [showImprovement, setShowImprovement] = useState(false);
 
   const navigateTo = useCallback((view: ViewType) => {
     dispatch({ type: 'SET_VIEW', payload: view });
@@ -107,6 +110,14 @@ function AppContent() {
             </div>
           )}
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowImprovement(!showImprovement)}
+              className={`text-xs px-2 py-1 rounded transition-colors ${
+                showImprovement ? 'bg-prisma-accent2/20 text-prisma-accent2' : 'text-prisma-muted hover:text-prisma-text hover:bg-prisma-panel'
+              }`}
+            >
+              <i className="fas fa-chart-line mr-1"></i>Mejora Continua
+            </button>
             <button className="text-prisma-muted hover:text-prisma-text text-xs px-2 py-1 rounded hover:bg-prisma-panel">
               <i className="fas fa-undo mr-1"></i>Deshacer
             </button>
@@ -119,7 +130,11 @@ function AppContent() {
         {/* Workspace */}
         <div className="flex-1 flex overflow-hidden">
           <div className="flex-1 overflow-auto">
-            {renderView(state, dispatch)}
+            {showImprovement ? (
+              <ContinuousImprovementPanel onClose={() => setShowImprovement(false)} />
+            ) : (
+              renderView(state, dispatch)
+            )}
           </div>
           {showAI && <AIAssistant onClose={() => setShowAI(false)} />}
         </div>
@@ -170,8 +185,10 @@ function EditorView() {
 
 export default function App() {
   return (
-    <AppProvider>
-      <AppContent />
-    </AppProvider>
+    <AgentsProvider>
+      <AppProvider>
+        <AppContent />
+      </AppProvider>
+    </AgentsProvider>
   );
 }
