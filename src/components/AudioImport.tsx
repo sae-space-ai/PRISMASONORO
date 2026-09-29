@@ -1,4 +1,4 @@
-import React, { useRef, useCallback, useState } from 'react';
+import React, { useRef, useCallback, useState, useEffect } from 'react';
 import { useAppState } from '../store';
 import { v4 as uuidv4 } from 'uuid';
 import { validateAudioFile, validateFileName } from '../security/validators';
@@ -12,6 +12,19 @@ export function AudioImport() {
   const [diagnostic, setDiagnostic] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const operationIdRef = useRef<string | null>(null);
+
+  // P0 FIX: Listen for trigger event from TopBar
+  useEffect(() => {
+    const handleTriggerImport = () => {
+      if (fileInputRef.current && importState !== 'READING' && importState !== 'DECODING' && importState !== 'ANALYSING') {
+        fileInputRef.current.value = ''; // Reset to allow same file selection
+        fileInputRef.current.click();
+      }
+    };
+
+    window.addEventListener('prisma:trigger-import', handleTriggerImport);
+    return () => window.removeEventListener('prisma:trigger-import', handleTriggerImport);
+  }, [importState]);
 
   const processAudio = useCallback(async (file: File) => {
     // SEC-01: Validar archivo antes de procesar

@@ -35,7 +35,12 @@ export function TopBar({ onToggleImprovement, onToggleCapabilities, showImprovem
           <span>Proyecto</span>
         </button>
         <button
-          onClick={() => dispatch({ type: 'SET_VIEW', payload: 'lavadora' })}
+          onClick={() => {
+            // P0 FIX: Navigate to lavadora view AND trigger file picker
+            dispatch({ type: 'SET_VIEW', payload: 'lavadora' });
+            // Dispatch custom event for AudioImport to listen
+            window.dispatchEvent(new CustomEvent('prisma:trigger-import'));
+          }}
           className="btn-primary text-xs flex items-center gap-2"
         >
           <i className="fas fa-cloud-upload-alt"></i>

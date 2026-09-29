@@ -18,18 +18,23 @@ export function CodeNavigation() {
   const { state, dispatch } = useAppState();
 
   const getFunctionStatus = (id: ViewType): 'pending' | 'running' | 'completed' | 'review' | 'error' => {
+    // FIX: No false green states - require real evidence of completion
     if (!state.audio) return 'pending';
     
     switch (id) {
       case 'lavadora':
-        return 'completed';
+        // Only completed if audio exists AND we have diagnostics (implied by moving past import)
+        // For now, show as 'running' if audio exists but no events yet
+        return state.events.length === 0 ? 'running' : 'completed';
       case 'tapiz':
-        return state.audio ? 'completed' : 'pending';
+        // Only completed if we have events (spectral analysis implied)
+        return state.events.length > 0 ? 'completed' : 'pending';
       case 'imanes':
         return state.sources.some(s => s.instrument.family !== 'unknown') ? 'completed' : 'pending';
       case 'tamiz':
       case 'prisma':
-        return state.audio ? 'completed' : 'pending';
+        // Only completed if we have events (frequency analysis implied)
+        return state.events.length > 0 ? 'completed' : 'pending';
       case 'fotocopiadora':
         return state.events.length > 0 ? 'completed' : 'pending';
       case 'algoritmo':
