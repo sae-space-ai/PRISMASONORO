@@ -13,18 +13,22 @@ export function AudioImport() {
   const [error, setError] = useState<string | null>(null);
   const operationIdRef = useRef<string | null>(null);
 
-  // P0 FIX: Listen for trigger event from TopBar
+  // P0 FIX: Listen for importRequested flag from store
   useEffect(() => {
-    const handleTriggerImport = () => {
+    if (state.importRequested) {
+      // Clear the flag immediately
+      dispatch({ type: 'CLEAR_IMPORT_REQUEST' });
+      
+      // Open file picker if not already processing
       if (fileInputRef.current && importState !== 'READING' && importState !== 'DECODING' && importState !== 'ANALYSING') {
         fileInputRef.current.value = ''; // Reset to allow same file selection
-        fileInputRef.current.click();
+        // Use setTimeout to ensure DOM is ready after view change
+        setTimeout(() => {
+          fileInputRef.current?.click();
+        }, 50);
       }
-    };
-
-    window.addEventListener('prisma:trigger-import', handleTriggerImport);
-    return () => window.removeEventListener('prisma:trigger-import', handleTriggerImport);
-  }, [importState]);
+    }
+  }, [state.importRequested, dispatch, importState]);
 
   const processAudio = useCallback(async (file: File) => {
     // SEC-01: Validar archivo antes de procesar

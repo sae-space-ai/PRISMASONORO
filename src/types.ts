@@ -100,6 +100,7 @@ export interface ProjectState {
   zoom: { time: number; frequency: number };
   playbackPosition: number;
   isPlaying: boolean;
+  importRequested: boolean; // P0: Flag para abrir selector de archivos
 }
 
 export interface ProcessingStage {

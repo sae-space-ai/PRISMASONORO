@@ -24,6 +24,7 @@ const initialState: ProjectState = {
   zoom: { time: 1, frequency: 1 },
   playbackPosition: 0,
   isPlaying: false,
+  importRequested: false,
 };
 
 type Action =
@@ -43,6 +44,8 @@ type Action =
   | { type: 'SET_ZOOM'; payload: { time?: number; frequency?: number } }
   | { type: 'SET_BARS'; payload: ProjectState['bars'] }
   | { type: 'SELECT_BAR'; payload: number | null }
+  | { type: 'REQUEST_IMPORT' }
+  | { type: 'CLEAR_IMPORT_REQUEST' }
   | { type: 'RESET_PROJECT' };
 
 function reducer(state: ProjectState, action: Action): ProjectState {
@@ -79,6 +82,10 @@ function reducer(state: ProjectState, action: Action): ProjectState {
       return { ...state, bars: action.payload };
     case 'SELECT_BAR':
       return { ...state, selectedBar: action.payload };
+    case 'REQUEST_IMPORT':
+      return { ...state, importRequested: true };
+    case 'CLEAR_IMPORT_REQUEST':
+      return { ...state, importRequested: false };
     case 'RESET_PROJECT':
       return { ...initialState };
     default:

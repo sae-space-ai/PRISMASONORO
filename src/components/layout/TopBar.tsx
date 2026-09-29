@@ -36,10 +36,9 @@ export function TopBar({ onToggleImprovement, onToggleCapabilities, showImprovem
         </button>
         <button
           onClick={() => {
-            // P0 FIX: Navigate to lavadora view AND trigger file picker
+            // P0 FIX: Navigate to lavadora view AND request import
             dispatch({ type: 'SET_VIEW', payload: 'lavadora' });
-            // Dispatch custom event for AudioImport to listen
-            window.dispatchEvent(new CustomEvent('prisma:trigger-import'));
+            dispatch({ type: 'REQUEST_IMPORT' });
           }}
           className="btn-primary text-xs flex items-center gap-2"
         >
