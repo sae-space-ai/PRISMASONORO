@@ -1,77 +1,185 @@
 import React, { useRef, useCallback, useState } from 'react';
 import { useAppState } from '../store';
 import { v4 as uuidv4 } from 'uuid';
+import { validateAudioFile, validateFileName } from '../security/validators';
+import { securityLogger, ImportState } from '../security';
 
 export function AudioImport() {
   const { state, dispatch } = useAppState();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [importState, setImportState] = useState<ImportState>('IDLE');
   const [diagnostic, setDiagnostic] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const operationIdRef = useRef<string | null>(null);
 
   const processAudio = useCallback(async (file: File) => {
-    setLoading(true);
+    // SEC-01: Validar archivo antes de procesar
+    const validation = validateAudioFile(file);
+    if (!validation.valid) {
+      setError(`Archivo no válido: ${validation.errors.join(', ')}`);
+      setImportState('ERROR');
+      return;
+    }
+
+    // SEC-04: Validar nombre de archivo
+    const nameValidation = validateFileName(file.name);
+    if (!nameValidation.valid) {
+      setError(`Nombre de archivo no válido: ${nameValidation.errors.join(', ')}`);
+      setImportState('ERROR');
+      return;
+    }
+
+    // Control de concurrencia: cancelar operación anterior si existe
+    const currentOperationId = uuidv4();
+    operationIdRef.current = currentOperationId;
+
+    setImportState('READING');
+    setError(null);
     setDiagnostic(null);
+
     try {
       const arrayBuffer = await file.arrayBuffer();
+
+      // Verificar que esta operación sigue siendo la vigente
+      if (operationIdRef.current !== currentOperationId) {
+        setImportState('CANCELLED');
+        return;
+      }
+
+      setImportState('DECODING');
       const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+      
+      try {
+        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
 
-      const audioFile = {
-        id: uuidv4(),
-        name: file.name,
-        duration: audioBuffer.duration,
-        sampleRate: audioBuffer.sampleRate,
-        channels: audioBuffer.numberOfChannels,
-        format: file.name.split('.').pop()?.toUpperCase() || 'UNKNOWN',
-        size: file.size,
-        buffer: audioBuffer,
-      };
+        // Verificar nuevamente que esta operación sigue siendo la vigente
+        if (operationIdRef.current !== currentOperationId) {
+          audioCtx.close();
+          setImportState('CANCELLED');
+          return;
+        }
 
-      dispatch({ type: 'SET_AUDIO', payload: audioFile });
+        setImportState('ANALYSING');
+        const audioFile = {
+          id: uuidv4(),
+          name: file.name,
+          duration: audioBuffer.duration,
+          sampleRate: audioBuffer.sampleRate,
+          channels: audioBuffer.numberOfChannels,
+          format: file.name.split('.').pop()?.toUpperCase() || 'UNKNOWN',
+          size: file.size,
+          buffer: audioBuffer,
+        };
 
-      // Run diagnostic
-      const channelData = audioBuffer.getChannelData(0);
-      const rms = Math.sqrt(channelData.reduce((sum, s) => sum + s * s, 0) / channelData.length);
-      const peak = Math.max(...channelData.map(Math.abs));
-      const isClipping = peak > 0.99;
+        dispatch({ type: 'SET_AUDIO', payload: audioFile });
 
-      // Simple noise floor estimation
-      const sorted = [...channelData].map(Math.abs).sort((a, b) => a - b);
-      const noiseFloor = sorted[Math.floor(sorted.length * 0.1)];
+        // SEC-04: Análisis acotado sin explosión de memoria
+        // NO usar Math.max(...array) ni [...array].sort() en buffers grandes
+        const channelData = audioBuffer.getChannelData(0);
+        
+        // Calcular RMS de forma incremental
+        let sumSquares = 0;
+        let peak = 0;
+        for (let i = 0; i < channelData.length; i++) {
+          const sample = channelData[i];
+          const absSample = Math.abs(sample);
+          sumSquares += sample * sample;
+          if (absSample > peak) peak = absSample;
+        }
+        const rms = Math.sqrt(sumSquares / channelData.length);
+        const isClipping = peak > 0.99;
 
-      setDiagnostic({
-        duration: audioBuffer.duration.toFixed(2),
-        sampleRate: audioBuffer.sampleRate,
-        channels: audioBuffer.numberOfChannels,
-        rms: (20 * Math.log10(rms)).toFixed(1),
-        peak: (20 * Math.log10(peak)).toFixed(1),
-        clipping: isClipping,
-        noiseFloor: (20 * Math.log10(noiseFloor + 1e-10)).toFixed(1),
-        dynamicRange: ((20 * Math.log10(peak)) - (20 * Math.log10(noiseFloor + 1e-10))).toFixed(1),
-      });
+        // Estimación de noise floor con muestreo acotado
+        // En lugar de ordenar todo el buffer, muestrear 10000 puntos
+        const sampleSize = Math.min(10000, channelData.length);
+        const step = Math.floor(channelData.length / sampleSize);
+        const samples: number[] = [];
+        for (let i = 0; i < channelData.length && samples.length < sampleSize; i += step) {
+          samples.push(Math.abs(channelData[i]));
+        }
+        samples.sort((a, b) => a - b);
+        const noiseFloor = samples[Math.floor(samples.length * 0.1)] || 0;
 
-      // Generate initial bars
-      const estimatedTempo = 120;
-      const beatsPerBar = 4;
-      const beatDuration = 60 / estimatedTempo;
-      const barDuration = beatDuration * beatsPerBar;
-      const numBars = Math.floor(audioBuffer.duration / barDuration);
-      const bars = Array.from({ length: numBars }, (_, i) => ({
-        number: i + 1,
-        startTime: i * barDuration,
-        endTime: (i + 1) * barDuration,
-        timeSignature: [4, 4] as [number, number],
-        tempo: estimatedTempo,
-        events: [],
-      }));
-      dispatch({ type: 'SET_BARS', payload: bars });
-      dispatch({ type: 'SET_TEMPO', payload: estimatedTempo });
+        // Cerrar AudioContext para liberar recursos
+        await audioCtx.close();
 
-      setLoading(false);
+        setDiagnostic({
+          duration: audioBuffer.duration.toFixed(2),
+          sampleRate: audioBuffer.sampleRate,
+          channels: audioBuffer.numberOfChannels,
+          rms: (20 * Math.log10(rms + 1e-10)).toFixed(1),
+          peak: (20 * Math.log10(peak + 1e-10)).toFixed(1),
+          clipping: isClipping,
+          noiseFloor: (20 * Math.log10(noiseFloor + 1e-10)).toFixed(1),
+          dynamicRange: ((20 * Math.log10(peak + 1e-10)) - (20 * Math.log10(noiseFloor + 1e-10))).toFixed(1),
+        });
+
+        // Generate initial bars
+        const estimatedTempo = 120;
+        const beatsPerBar = 4;
+        const beatDuration = 60 / estimatedTempo;
+        const barDuration = beatDuration * beatsPerBar;
+        const numBars = Math.floor(audioBuffer.duration / barDuration);
+        const bars = Array.from({ length: numBars }, (_, i) => ({
+          number: i + 1,
+          startTime: i * barDuration,
+          endTime: (i + 1) * barDuration,
+          timeSignature: [4, 4] as [number, number],
+          tempo: estimatedTempo,
+          events: [],
+        }));
+        dispatch({ type: 'SET_BARS', payload: bars });
+        dispatch({ type: 'SET_TEMPO', payload: estimatedTempo });
+
+        setImportState('READY');
+
+        securityLogger.log(
+          'INPUT_VALIDATION',
+          'AudioImport',
+          'INFO',
+          'SUCCESS',
+          {
+            fileName: file.name,
+            duration: audioBuffer.duration,
+            sampleRate: audioBuffer.sampleRate,
+            channels: audioBuffer.numberOfChannels,
+          }
+        );
+      } catch (decodeError) {
+        await audioCtx.close();
+        throw decodeError;
+      }
     } catch (err) {
-      console.error('Error processing audio:', err);
-      setLoading(false);
+      // Verificar si fue cancelado
+      if (operationIdRef.current !== currentOperationId) {
+        setImportState('CANCELLED');
+        return;
+      }
+
+      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
+      
+      // Mostrar error específico al usuario
+      if (errorMessage.includes('Unable to decode')) {
+        setError('ARCHIVO NO COMPATIBLE o CORRUPTO. El navegador no puede decodificar este formato.');
+      } else if (errorMessage.includes('Out of memory')) {
+        setError('MEMORIA INSUFICIENTE. El archivo es demasiado grande para procesar.');
+      } else {
+        setError(`ERROR DE DECODIFICACIÓN: ${errorMessage}`);
+      }
+      
+      setImportState('ERROR');
+
+      securityLogger.log(
+        'INPUT_VALIDATION',
+        'AudioImport',
+        'ERROR',
+        'FAILURE',
+        {
+          fileName: file.name,
+          error: errorMessage,
+        }
+      );
     }
   }, [dispatch]);
 
@@ -161,25 +269,67 @@ export function AudioImport() {
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
+        onClick={() => {
+          if (importState !== 'READING' && importState !== 'DECODING' && importState !== 'ANALYSING') {
+            fileInputRef.current?.click();
+          }
+        }}
         className={`rounded-xl border-2 border-dashed p-12 text-center cursor-pointer transition-all ${
           dragOver ? 'border-prisma-accent bg-prisma-accent/10' : 'border-prisma-border hover:border-prisma-accent/50'
         }`}
       >
-        <input ref={fileInputRef} type="file" accept="audio/*" onChange={handleFileSelect} className="hidden" />
-        {loading ? (
+        <input 
+          ref={fileInputRef} 
+          type="file" 
+          accept="audio/*" 
+          onChange={handleFileSelect} 
+          className="hidden"
+          // Permitir seleccionar el mismo archivo dos veces
+          onClick={(e) => {
+            const target = e.target as HTMLInputElement;
+            target.value = '';
+          }}
+        />
+        {importState === 'READING' || importState === 'DECODING' || importState === 'ANALYSING' ? (
           <div>
             <i className="fas fa-spinner fa-spin text-3xl text-prisma-accent mb-3"></i>
-            <p className="text-sm text-prisma-muted">Decodificando audio...</p>
+            <p className="text-sm text-prisma-muted">
+              {importState === 'READING' && 'Leyendo archivo...'}
+              {importState === 'DECODING' && 'Decodificando audio...'}
+              {importState === 'ANALYSING' && 'Analizando audio...'}
+            </p>
+            <p className="text-xs text-prisma-muted mt-1">Puedes cancelar seleccionando otro archivo</p>
           </div>
         ) : (
           <div>
             <i className="fas fa-cloud-upload-alt text-4xl text-prisma-accent mb-3"></i>
             <p className="text-sm text-white mb-1">Arrastra un archivo de audio aquí</p>
-            <p className="text-xs text-prisma-muted">WAV · MP3 · FLAC · AIFF</p>
+            <p className="text-xs text-prisma-muted">WAV · MP3 · FLAC · AIFF (máx. 500 MB)</p>
           </div>
         )}
       </div>
+
+      {/* Error Display */}
+      {error && (
+        <div className="mt-4 p-4 bg-prisma-error/10 border border-prisma-error rounded-lg">
+          <div className="flex items-start gap-3">
+            <i className="fas fa-exclamation-triangle text-prisma-error text-xl mt-0.5"></i>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-prisma-error mb-1">Error de Importación</p>
+              <p className="text-xs text-prisma-text">{error}</p>
+            </div>
+            <button
+              onClick={() => {
+                setError(null);
+                setImportState('IDLE');
+              }}
+              className="text-prisma-error hover:text-prisma-text transition-colors"
+            >
+              <i className="fas fa-times"></i>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Demo button */}
       <div className="mt-4 text-center">
