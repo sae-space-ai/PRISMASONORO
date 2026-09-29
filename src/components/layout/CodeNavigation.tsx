@@ -12,6 +12,7 @@ const CODEX_FUNCTIONS = [
   { id: 'algoritmo' as ViewType, name: 'Algoritmo', desc: 'Resolver incidencias', icon: 'fa-brain', color: 'text-prisma-percussion' },
   { id: 'manuscrito' as ViewType, name: 'Manuscrito', desc: 'Escribir partitura', icon: 'fa-pen-fancy', color: 'text-prisma-success' },
   { id: 'ciclo' as ViewType, name: 'Ciclo', desc: 'Comprobar y mejorar', icon: 'fa-sync', color: 'text-prisma-accent-2' },
+  { id: 'inteligencia' as ViewType, name: 'Inteligencia', desc: 'Análisis musical', icon: 'fa-brain', color: 'text-prisma-accent' },
 ];
 
 export function CodeNavigation() {
@@ -44,6 +45,8 @@ export function CodeNavigation() {
         return state.events.length > 10 ? 'completed' : 'pending';
       case 'ciclo':
         return state.events.length > 0 ? 'completed' : 'pending';
+      case 'inteligencia':
+        return state.audio ? 'completed' : 'pending';
       default:
         return 'pending';
     }

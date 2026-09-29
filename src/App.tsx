@@ -22,6 +22,7 @@ import { ScoreEditor } from './components/ScoreEditor';
 import { ExportPanel } from './components/ExportPanel';
 import { ContinuousImprovementPanel } from './components/ContinuousImprovementPanel';
 import { CapabilitiesPanel } from './components/CapabilitiesPanel';
+import { IntelligencePanel } from './components/IntelligencePanel';
 
 function AppContent() {
   const { state, dispatch } = useAppState();
@@ -73,6 +74,7 @@ function AppContent() {
           </div>
         );
       case 'export': return <ExportPanel />;
+      case 'inteligencia': return <IntelligencePanel />;
       default: return <CentralCanvas />;
     }
   };

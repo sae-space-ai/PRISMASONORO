@@ -111,4 +111,4 @@ export interface ProcessingStage {
   progress: number;
 }
 
-export type ViewType = 'dashboard' | 'lavadora' | 'tapiz' | 'imanes' | 'tamiz' | 'prisma' | 'fotocopiadora' | 'algoritmo' | 'manuscrito' | 'ciclo' | 'editor' | 'export';
+export type ViewType = 'dashboard' | 'lavadora' | 'tapiz' | 'imanes' | 'tamiz' | 'prisma' | 'fotocopiadora' | 'algoritmo' | 'manuscrito' | 'ciclo' | 'editor' | 'export' | 'inteligencia';
